@@ -1,27 +1,34 @@
 package org.acme;
 
 import io.quarkus.logging.Log;
-import io.quarkus.runtime.QuarkusApplication;
-import io.quarkus.runtime.annotations.QuarkusMain;
+import io.quarkus.runtime.StartupEvent;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
+import jakarta.enterprise.event.Event;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 
-@QuarkusMain
-public class RaftService implements QuarkusApplication {
+@Singleton
+public class RaftService {
 
     @Inject
     Vertx vertx;
 
     @Inject
     RaftConfig config;
+
+    @Inject
+    Event<OnLeaderElected> onLeaderElectedEvent;
+
+    @Inject
+    Event<OnLostLeadership> onLostLeadershipEvent;
 
     RaftState state = new RaftState();
 
@@ -33,8 +40,7 @@ public class RaftService implements QuarkusApplication {
 
     long heartbeatTimer;
 
-    @Override
-    public int run(String... args) throws Exception {
+    public void onStart(@Observes StartupEvent startup) {
         client = vertx.createHttpClient();
         startServer();
         resetElectionTimer();
@@ -47,13 +53,9 @@ public class RaftService implements QuarkusApplication {
                         throw new RuntimeException(e);
                     }
                 });
-
-        CountDownLatch latch = new CountDownLatch(1);
-        latch.await();
-        return 0;
     }
 
-    void startServer() {
+    private void startServer() {
         vertx.createHttpServer()
                 .requestHandler(req -> {
                     if (req.path().equals("/raft/heartbeat")) {
@@ -79,7 +81,7 @@ public class RaftService implements QuarkusApplication {
                 .listen(config.port());
     }
 
-    void resetElectionTimer() {
+    private void resetElectionTimer() {
         vertx.cancelTimer(electionTimer);
         long timeout =
                 config.electionTimeoutMin() +
@@ -97,7 +99,7 @@ public class RaftService implements QuarkusApplication {
                 });
     }
 
-    void startElection() throws URISyntaxException {
+    private void startElection() throws URISyntaxException {
         if (state.role == Role.LEADER)
             return;
         state.role = Role.CANDIDATE;
@@ -133,14 +135,14 @@ public class RaftService implements QuarkusApplication {
         resetElectionTimer();
     }
 
-    void becomeLeader() {
+    private void becomeLeader() {
         if (state.role == Role.LEADER)
             return;
         state.role = Role.LEADER;
-        onLeader();
+        onLeaderElectedEvent.fire(new OnLeaderElected());
     }
 
-    void sendHeartbeat() throws URISyntaxException {
+    private void sendHeartbeat() throws URISyntaxException {
         if (state.role != Role.LEADER)
             return;
 
@@ -167,7 +169,7 @@ public class RaftService implements QuarkusApplication {
             if (successfulResponses[0] < quorum) {
                 Log.warn("Leader lost quorum, stepping down → " + config.nodeId());
                 if (state.role == Role.LEADER) {
-                    onLostLeadership();
+                    onLostLeadershipEvent.fire(new OnLostLeadership());
                     state.role = Role.FOLLOWER;
                     resetElectionTimer();
                 }
@@ -175,10 +177,10 @@ public class RaftService implements QuarkusApplication {
         });
     }
 
-    void receiveHeartbeat(int term) {
+    private void receiveHeartbeat(int term) {
         if (term >= state.term) {
             if (state.role == Role.LEADER) {
-                onLostLeadership();
+                onLostLeadershipEvent.fire(new OnLostLeadership());
             }
             state.role = Role.FOLLOWER;
             state.term = term;
@@ -187,7 +189,7 @@ public class RaftService implements QuarkusApplication {
         }
     }
 
-    boolean requestVote(int term, String candidate) {
+    private boolean requestVote(int term, String candidate) {
         if (term > state.term) {
             state.term = term;
             state.votedFor = candidate;
@@ -199,15 +201,5 @@ public class RaftService implements QuarkusApplication {
             return true;
         }
         return false;
-    }
-
-    void onLeader() {
-        Log.info("LEADER ELECTED → " + config.nodeId());
-        // start Debezium
-    }
-
-    void onLostLeadership() {
-        Log.info("LEADER LOST → " + config.nodeId());
-        // stop Debezium
     }
 }
