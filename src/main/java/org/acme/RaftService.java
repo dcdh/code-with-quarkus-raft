@@ -143,16 +143,36 @@ public class RaftService implements QuarkusApplication {
     void sendHeartbeat() throws URISyntaxException {
         if (state.role != Role.LEADER)
             return;
+
         JsonObject body = new JsonObject().put("term", state.term);
+        int[] successfulResponses = {1}; // on compte soi-même
+        int quorum = config.peers().size() / 2 + 1;
+
         for (String peer : config.peers()) {
             final URI uri = new URI(peer);
             if (uri.getPort() == config.port()) {
                 continue;
             }
+
             client.request(HttpMethod.POST, uri.getPort(), uri.getHost(), "/raft/heartbeat")
                     .compose(req -> req.send(body.encode()))
-                    .onFailure(err -> Log.debug("Erreur requête vers " + peer + ": " + err));
+                    .onSuccess(resp -> {
+                        successfulResponses[0]++;
+                    })
+                    .onFailure(err -> Log.debug("Erreur heartbeat vers " + peer + ": " + err));
         }
+
+        // Vérification après un petit délai pour permettre aux réponses d’arriver
+        vertx.setTimer(config.heartbeatInterval() / 2, id -> {
+            if (successfulResponses[0] < quorum) {
+                Log.warn("Leader lost quorum, stepping down → " + config.nodeId());
+                if (state.role == Role.LEADER) {
+                    onLostLeadership();
+                    state.role = Role.FOLLOWER;
+                    resetElectionTimer();
+                }
+            }
+        });
     }
 
     void receiveHeartbeat(int term) {
