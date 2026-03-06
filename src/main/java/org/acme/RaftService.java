@@ -74,6 +74,8 @@ public class RaftService implements ServerResponseHandler {
                 continue;
             }
             client.vote(peer, state.term, voteGranted -> {
+                if (state.role != Role.CANDIDATE)
+                    return;
                 if (voteGranted.vote()) {
                     votes[0]++;
                     if (votes[0] > config.peers().size() / 2) {
