@@ -2,12 +2,7 @@ package org.acme;
 
 import io.quarkus.logging.Log;
 import io.quarkus.runtime.StartupEvent;
-import io.vertx.core.Future;
 import io.vertx.core.Vertx;
-import io.vertx.core.http.HttpClient;
-import io.vertx.core.http.HttpClientResponse;
-import io.vertx.core.http.HttpMethod;
-import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.event.Event;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -21,11 +16,18 @@ import java.util.Random;
 @Singleton
 public class RaftService implements ServerResponseHandler {
 
+    public static final String TERM = "term";
+    public static final String CANDIDATE = "candidate";
+    public static final String VOTE = "vote";
+
     @Inject
     Vertx vertx;
 
     @Inject
     RaftConfig config;
+
+    @Inject
+    Client client;
 
     @Inject
     Event<OnLeaderElected> onLeaderElectedEvent;
@@ -35,14 +37,11 @@ public class RaftService implements ServerResponseHandler {
 
     RaftState state = new RaftState();
 
-    HttpClient client;
-
     Random random = new Random();
 
     long electionTimer;
 
     public void onStart(@Observes StartupEvent startup) {
-        client = vertx.createHttpClient();
         resetElectionTimer();
         vertx.setPeriodic(
                 config.heartbeatInterval(),
@@ -72,26 +71,14 @@ public class RaftService implements ServerResponseHandler {
             if (peer.getPort() == config.port()) {
                 continue;
             }
-            JsonObject body = new JsonObject()
-                    .put("term", state.term)
-                    .put("candidate", config.nodeId());
-
-            client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/vote")
-                    .compose(req -> req.send(body.encode()))
-                    .onSuccess(response -> {
-                        response.body().onSuccess(buffer -> {
-                                    JsonObject json = buffer.toJsonObject();
-                                    boolean voteGranted = json.getBoolean("vote");
-                                    if (voteGranted) {
-                                        votes[0]++;
-                                        if (votes[0] > config.peers().size() / 2) {
-                                            becomeLeader();
-                                        }
-                                    }
-                                })
-                                .onFailure(err -> Log.debug("Erreur lecture body: " + err));
-                    })
-                    .onFailure(err -> Log.debug("Erreur requête vers " + peer + ": " + err));
+            client.vote(peer, state.term, voteGranted -> {
+                if (voteGranted.vote()) {
+                    votes[0]++;
+                    if (votes[0] > config.peers().size() / 2) {
+                        becomeLeader();
+                    }
+                }
+            });
         }
         resetElectionTimer();
     }
@@ -107,22 +94,13 @@ public class RaftService implements ServerResponseHandler {
         if (state.role != Role.LEADER)
             return;
 
-        JsonObject body = new JsonObject().put("term", state.term);
-        int[] successfulResponses = {1}; // on compte soi-même
         int quorum = config.peers().size() / 2 + 1;
-
-        final List<Future<HttpClientResponse>> heartbeats = config.peers()
+        final List<URI> peers = config.peers()
                 .stream()
                 .filter(peer -> peer.getPort() != config.port())
-                .map(peer -> client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/heartbeat")
-                        .compose(req -> req.send(body.encode()))
-                        .onSuccess(resp -> {
-                            successfulResponses[0]++;
-                        })
-                        .onFailure(err -> Log.debug("Erreur heartbeat vers " + peer + ": " + err)))
                 .toList();
-        Future.join(heartbeats).onComplete(result -> {
-            if (successfulResponses[0] < quorum) {
+        client.sendHeartbeats(peers, state.term, successfulResponses -> {
+            if (successfulResponses.isBellowQuorum(quorum)) {
                 Log.warn("Leader lost quorum, stepping down → " + config.nodeId());
                 if (state.role == Role.LEADER) {
                     onLostLeadershipEvent.fire(new OnLostLeadership());

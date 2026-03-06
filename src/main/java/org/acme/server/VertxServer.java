@@ -6,10 +6,7 @@ import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import org.acme.HeartbeatResponse;
-import org.acme.RaftConfig;
-import org.acme.ServerResponseHandler;
-import org.acme.VoteResponse;
+import org.acme.*;
 
 @Singleton
 public class VertxServer {
@@ -29,16 +26,17 @@ public class VertxServer {
                     if (req.path().equals("/raft/heartbeat")) {
                         req.bodyHandler(buffer -> {
                             JsonObject json = buffer.toJsonObject();
-                            serverResponseHandler.on(new HeartbeatResponse(json.getInteger("term")));
+                            serverResponseHandler.on(new HeartbeatResponse(json.getInteger(RaftService.TERM)));
                             req.response().end();
                         });
                     } else if (req.path().equals("/raft/vote")) {
                         req.bodyHandler(buffer -> {
                             JsonObject json = buffer.toJsonObject();
-                            boolean vote = serverResponseHandler.on(new VoteResponse(json.getInteger("term"), json.getString("candidate")));
+                            boolean vote = serverResponseHandler.on(new VoteResponse(json.getInteger(RaftService.TERM),
+                                    json.getString(RaftService.CANDIDATE)));
                             req.response()
                                     .end(new JsonObject()
-                                            .put("vote", vote)
+                                            .put(RaftService.VOTE, vote)
                                             .encode());
                         });
                     }
