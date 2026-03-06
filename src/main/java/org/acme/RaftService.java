@@ -43,17 +43,20 @@ public class RaftService implements ServerResponseHandler {
 
     Random random = new Random();
 
-    long electionTimer;
+    Long electionTimer;
 
     public void onStart(@Observes StartupEvent startup) {
-        restartElectionTimer();
         vertx.setPeriodic(
                 config.heartbeatInterval(),
                 id -> sendHeartbeat());
+        restartElectionTimer();
     }
 
     private void restartElectionTimer() {
-        vertx.cancelTimer(electionTimer);
+        // vertx.cancelTimer(0) will cancel all event the one defined using setPeriodic
+        if (electionTimer != null) {
+            vertx.cancelTimer(electionTimer);
+        }
         long timeout =
                 config.electionTimeoutMin() +
                         random.nextInt(
