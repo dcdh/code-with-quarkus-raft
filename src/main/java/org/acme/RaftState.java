@@ -6,7 +6,5 @@ public class RaftState {
 
     volatile int term = 0;
 
-    volatile String votedFor = null;
-
     volatile long lastHeartbeat = System.currentTimeMillis();
 }

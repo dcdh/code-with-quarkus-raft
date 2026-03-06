@@ -39,8 +39,7 @@ public class VertxClient implements Client {
         Objects.requireNonNull(term);
         Objects.requireNonNull(onVoteGranted);
         JsonObject body = new JsonObject()
-                .put(RaftService.TERM, term)
-                .put(RaftService.CANDIDATE, config.nodeId());
+                .put(RaftService.TERM, term);
         Future<HttpClientResponse> httpClientResponseFuture = client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/vote")
                 .compose(req -> req.send(body.encode()))
                 .onSuccess(response ->

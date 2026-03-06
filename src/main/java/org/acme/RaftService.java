@@ -19,7 +19,6 @@ import java.util.Random;
 public class RaftService implements ServerResponseHandler {
 
     public static final String TERM = "term";
-    public static final String CANDIDATE = "candidate";
     public static final String VOTE = "vote";
 
     @Inject
@@ -70,7 +69,6 @@ public class RaftService implements ServerResponseHandler {
             return;
         state.role = Role.CANDIDATE;
         state.term++;
-        state.votedFor = config.nodeId();
         final Votes votes = new Votes();
         final Quorum quorum = quorumProvider.provide();
         for (URI peer : config.peers()) {
@@ -136,10 +134,8 @@ public class RaftService implements ServerResponseHandler {
     public boolean on(final VoteResponse voteResponse) {
         Objects.requireNonNull(voteResponse);
         final int term = voteResponse.term();
-        final String candidate = voteResponse.candidate();
         if (term > state.term) {
             state.term = term;
-            state.votedFor = candidate;
             state.role = Role.FOLLOWER;
             resetElectionTimer();
             return true;
