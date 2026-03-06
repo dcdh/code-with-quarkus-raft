@@ -125,7 +125,6 @@ public class RaftService implements ServerResponseHandler {
             }
             state.role = Role.FOLLOWER;
             state.term = heartbeatResponse.term();
-            state.lastHeartbeat = System.currentTimeMillis();
             restartElectionTimer();
         }
     }
