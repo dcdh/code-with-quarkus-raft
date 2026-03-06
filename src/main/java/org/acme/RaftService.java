@@ -111,19 +111,25 @@ public class RaftService implements ServerResponseHandler {
         });
     }
 
-    private void receiveHeartbeat(int term) {
-        if (term >= state.term) {
+    @Override
+    public void on(final HeartbeatResponse heartbeatResponse) {
+        Objects.requireNonNull(heartbeatResponse);
+        if (heartbeatResponse.term() >= state.term) {
             if (state.role == Role.LEADER) {
                 onLostLeadershipEvent.fire(new OnLostLeadership());
             }
             state.role = Role.FOLLOWER;
-            state.term = term;
+            state.term = heartbeatResponse.term();
             state.lastHeartbeat = System.currentTimeMillis();
             resetElectionTimer();
         }
     }
 
-    private boolean requestVote(int term, String candidate) {
+    @Override
+    public boolean on(final VoteResponse voteResponse) {
+        Objects.requireNonNull(voteResponse);
+        final int term = voteResponse.term();
+        final String candidate = voteResponse.candidate();
         if (term > state.term) {
             state.term = term;
             state.votedFor = candidate;
@@ -135,17 +141,5 @@ public class RaftService implements ServerResponseHandler {
             return true;
         }
         return false;
-    }
-
-    @Override
-    public void on(final HeartbeatResponse heartbeatResponse) {
-        Objects.requireNonNull(heartbeatResponse);
-        receiveHeartbeat(heartbeatResponse.term());
-    }
-
-    @Override
-    public boolean on(final VoteResponse voteResponse) {
-        Objects.requireNonNull(voteResponse);
-        return requestVote(voteResponse.term(), voteResponse.candidate());
     }
 }
