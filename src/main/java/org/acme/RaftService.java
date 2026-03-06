@@ -2,8 +2,10 @@ package org.acme;
 
 import io.quarkus.logging.Log;
 import io.quarkus.runtime.StartupEvent;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.event.Event;
@@ -12,6 +14,7 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Random;
 
 @Singleton
@@ -136,21 +139,17 @@ public class RaftService {
         int[] successfulResponses = {1}; // on compte soi-même
         int quorum = config.peers().size() / 2 + 1;
 
-        for (URI peer : config.peers()) {
-            if (peer.getPort() == config.port()) {
-                continue;
-            }
-
-            client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/heartbeat")
-                    .compose(req -> req.send(body.encode()))
-                    .onSuccess(resp -> {
-                        successfulResponses[0]++;
-                    })
-                    .onFailure(err -> Log.debug("Erreur heartbeat vers " + peer + ": " + err));
-        }
-
-        // Vérification après un petit délai pour permettre aux réponses d’arriver
-        vertx.setTimer(config.heartbeatInterval() / 2, id -> {
+        final List<Future<HttpClientResponse>> heartbeats = config.peers()
+                .stream()
+                .filter(peer -> peer.getPort() != config.port())
+                .map(peer -> client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/heartbeat")
+                        .compose(req -> req.send(body.encode()))
+                        .onSuccess(resp -> {
+                            successfulResponses[0]++;
+                        })
+                        .onFailure(err -> Log.debug("Erreur heartbeat vers " + peer + ": " + err)))
+                .toList();
+        Future.join(heartbeats).onComplete(result -> {
             if (successfulResponses[0] < quorum) {
                 Log.warn("Leader lost quorum, stepping down → " + config.nodeId());
                 if (state.role == Role.LEADER) {
