@@ -78,7 +78,7 @@ public class RaftService implements ServerResponseHandler {
                     return;
                 if (voteGranted.vote()) {
                     votes[0]++;
-                    if (votes[0] > config.peers().size() / 2) {
+                    if (votes[0] >= config.peers().size() / 2 + 1) {
                         becomeLeader();
                     }
                 }
