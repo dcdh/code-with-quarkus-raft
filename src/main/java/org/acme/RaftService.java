@@ -46,13 +46,13 @@ public class RaftService implements ServerResponseHandler {
     long electionTimer;
 
     public void onStart(@Observes StartupEvent startup) {
-        resetElectionTimer();
+        restartElectionTimer();
         vertx.setPeriodic(
                 config.heartbeatInterval(),
                 id -> sendHeartbeat());
     }
 
-    private void resetElectionTimer() {
+    private void restartElectionTimer() {
         vertx.cancelTimer(electionTimer);
         long timeout =
                 config.electionTimeoutMin() +
@@ -86,7 +86,7 @@ public class RaftService implements ServerResponseHandler {
                 }
             });
         }
-        resetElectionTimer();
+        restartElectionTimer();
     }
 
     private void becomeLeader() {
@@ -110,7 +110,7 @@ public class RaftService implements ServerResponseHandler {
                 if (state.role == Role.LEADER) {
                     onLostLeadershipEvent.fire(new OnLostLeadership());
                     state.role = Role.FOLLOWER;
-                    resetElectionTimer();
+                    restartElectionTimer();
                 }
             }
         });
@@ -126,7 +126,7 @@ public class RaftService implements ServerResponseHandler {
             state.role = Role.FOLLOWER;
             state.term = heartbeatResponse.term();
             state.lastHeartbeat = System.currentTimeMillis();
-            resetElectionTimer();
+            restartElectionTimer();
         }
     }
 
@@ -137,7 +137,7 @@ public class RaftService implements ServerResponseHandler {
         if (term > state.term) {
             state.term = term;
             state.role = Role.FOLLOWER;
-            resetElectionTimer();
+            restartElectionTimer();
             return true;
         }
         return false;
