@@ -32,6 +32,9 @@ public class RaftService implements ServerResponseHandler {
     Client client;
 
     @Inject
+    QuorumProvider quorumProvider;
+
+    @Inject
     Event<OnLeaderElected> onLeaderElectedEvent;
 
     @Inject
@@ -68,7 +71,8 @@ public class RaftService implements ServerResponseHandler {
         state.role = Role.CANDIDATE;
         state.term++;
         state.votedFor = config.nodeId();
-        int[] votes = {1};
+        final Votes votes = new Votes();
+        final Quorum quorum = quorumProvider.provide();
         for (URI peer : config.peers()) {
             if (peer.getPort() == config.port()) {
                 continue;
@@ -77,8 +81,8 @@ public class RaftService implements ServerResponseHandler {
                 if (state.role != Role.CANDIDATE)
                     return;
                 if (voteGranted.vote()) {
-                    votes[0]++;
-                    if (votes[0] >= config.peers().size() / 2 + 1) {
+                    votes.increment();
+                    if (!votes.isBellowQuorum(quorum)) {
                         becomeLeader();
                     }
                 }
@@ -97,8 +101,7 @@ public class RaftService implements ServerResponseHandler {
     private void sendHeartbeat() {
         if (state.role != Role.LEADER)
             return;
-
-        int quorum = config.peers().size() / 2 + 1;
+        final Quorum quorum = quorumProvider.provide();
         final List<URI> peers = config.peers()
                 .stream()
                 .filter(peer -> peer.getPort() != config.port())

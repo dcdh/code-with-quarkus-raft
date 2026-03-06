@@ -1,6 +1,6 @@
 package org.acme;
 
-public class SuccessfulResponses {
+public class Votes {
 
     // on compte soi-même
     private int count = 1;
