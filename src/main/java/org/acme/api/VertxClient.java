@@ -26,9 +26,6 @@ public class VertxClient implements Client {
     @Inject
     Vertx vertx;
 
-    @Inject
-    RaftConfig config;
-
     public void onStart(@Observes StartupEvent startup) {
         client = vertx.createHttpClient();
     }
@@ -40,7 +37,7 @@ public class VertxClient implements Client {
         Objects.requireNonNull(onVoteGranted);
         JsonObject body = new JsonObject()
                 .put(RaftService.TERM, term);
-        Future<HttpClientResponse> httpClientResponseFuture = client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/vote")
+        client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/vote")
                 .compose(req -> req.send(body.encode()))
                 .onSuccess(response ->
                         response.body().onSuccess(buffer -> {
@@ -61,14 +58,13 @@ public class VertxClient implements Client {
         Objects.requireNonNull(onSuccessfulResponses);
         final JsonObject body = new JsonObject().put(RaftService.TERM, term);
         final SuccessfulResponses successfulResponses = new SuccessfulResponses();
-        final List<Future<HttpClientResponse>> heartbeats = config.peers()
+        final List<Future<HttpClientResponse>> heartbeats = peers
                 .stream()
-                .filter(peer -> peer.getPort() != config.port())
                 .map(peer -> client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/heartbeat")
                         .compose(req -> req.send(body.encode()))
                         .onSuccess(resp -> successfulResponses.increment())
                         .onFailure(err -> Log.debug("Erreur heartbeat vers " + peer + ": " + err)))
                 .toList();
-        Future.join(heartbeats).onComplete(result -> onSuccessfulResponses.accept(successfulResponses));
+        Future.join(heartbeats).onComplete(_ -> onSuccessfulResponses.accept(successfulResponses));
     }
 }
