@@ -12,7 +12,6 @@ import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Random;
 
 @Singleton
@@ -46,13 +45,7 @@ public class RaftService {
         resetElectionTimer();
         heartbeatTimer = vertx.setPeriodic(
                 config.heartbeatInterval(),
-                id -> {
-                    try {
-                        sendHeartbeat();
-                    } catch (URISyntaxException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                id -> sendHeartbeat());
     }
 
     private void startServer() {
@@ -90,32 +83,25 @@ public class RaftService {
                                         - config.electionTimeoutMin());
         electionTimer = vertx.setTimer(
                 timeout,
-                id -> {
-                    try {
-                        startElection();
-                    } catch (URISyntaxException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                id -> startElection());
     }
 
-    private void startElection() throws URISyntaxException {
+    private void startElection() {
         if (state.role == Role.LEADER)
             return;
         state.role = Role.CANDIDATE;
         state.term++;
         state.votedFor = config.nodeId();
         int[] votes = {1};
-        for (String peer : config.peers()) {
-            final URI uri = new URI(peer);
-            if (uri.getPort() == config.port()) {
+        for (URI peer : config.peers()) {
+            if (peer.getPort() == config.port()) {
                 continue;
             }
             JsonObject body = new JsonObject()
                     .put("term", state.term)
                     .put("candidate", config.nodeId());
 
-            client.request(HttpMethod.POST, uri.getPort(), uri.getHost(), "/raft/vote")
+            client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/vote")
                     .compose(req -> req.send(body.encode()))
                     .onSuccess(response -> {
                         response.body().onSuccess(buffer -> {
@@ -142,7 +128,7 @@ public class RaftService {
         onLeaderElectedEvent.fire(new OnLeaderElected());
     }
 
-    private void sendHeartbeat() throws URISyntaxException {
+    private void sendHeartbeat() {
         if (state.role != Role.LEADER)
             return;
 
@@ -150,13 +136,12 @@ public class RaftService {
         int[] successfulResponses = {1}; // on compte soi-même
         int quorum = config.peers().size() / 2 + 1;
 
-        for (String peer : config.peers()) {
-            final URI uri = new URI(peer);
-            if (uri.getPort() == config.port()) {
+        for (URI peer : config.peers()) {
+            if (peer.getPort() == config.port()) {
                 continue;
             }
 
-            client.request(HttpMethod.POST, uri.getPort(), uri.getHost(), "/raft/heartbeat")
+            client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/heartbeat")
                     .compose(req -> req.send(body.encode()))
                     .onSuccess(resp -> {
                         successfulResponses[0]++;
