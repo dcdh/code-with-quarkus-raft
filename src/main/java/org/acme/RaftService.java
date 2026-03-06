@@ -7,6 +7,8 @@ import jakarta.enterprise.event.Event;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.acme.event.OnLeaderElected;
+import org.acme.event.OnLostLeadership;
 
 import java.net.URI;
 import java.util.List;

@@ -5,6 +5,8 @@ import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import org.acme.event.OnLeaderElected;
+import org.acme.event.OnLostLeadership;
 
 import java.util.concurrent.CountDownLatch;
 

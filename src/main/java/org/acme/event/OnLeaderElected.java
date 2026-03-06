@@ -1,4 +1,4 @@
-package org.acme;
+package org.acme.event;
 
 public record OnLeaderElected() {
 }
