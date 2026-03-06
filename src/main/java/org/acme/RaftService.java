@@ -143,9 +143,6 @@ public class RaftService implements ServerResponseHandler {
             state.role = Role.FOLLOWER;
             resetElectionTimer();
             return true;
-        } else if (term == state.term && (state.votedFor == null || state.votedFor.equals(candidate))) {
-            state.votedFor = candidate;
-            return true;
         }
         return false;
     }
