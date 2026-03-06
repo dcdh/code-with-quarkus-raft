@@ -40,13 +40,11 @@ public class RaftService {
 
     long electionTimer;
 
-    long heartbeatTimer;
-
     public void onStart(@Observes StartupEvent startup) {
         client = vertx.createHttpClient();
         startServer();
         resetElectionTimer();
-        heartbeatTimer = vertx.setPeriodic(
+        vertx.setPeriodic(
                 config.heartbeatInterval(),
                 id -> sendHeartbeat());
     }
