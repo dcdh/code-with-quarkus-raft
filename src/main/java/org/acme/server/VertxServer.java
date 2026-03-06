@@ -1,0 +1,48 @@
+package org.acme.server;
+
+import io.quarkus.runtime.StartupEvent;
+import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonObject;
+import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
+import org.acme.HeartbeatResponse;
+import org.acme.RaftConfig;
+import org.acme.ServerResponseHandler;
+import org.acme.VoteResponse;
+
+@Singleton
+public class VertxServer {
+
+    @Inject
+    Vertx vertx;
+
+    @Inject
+    RaftConfig config;
+
+    @Inject
+    ServerResponseHandler serverResponseHandler;
+
+    void init(@Observes StartupEvent ev) {
+        vertx.createHttpServer()
+                .requestHandler(req -> {
+                    if (req.path().equals("/raft/heartbeat")) {
+                        req.bodyHandler(buffer -> {
+                            JsonObject json = buffer.toJsonObject();
+                            serverResponseHandler.on(new HeartbeatResponse(json.getInteger("term")));
+                            req.response().end();
+                        });
+                    } else if (req.path().equals("/raft/vote")) {
+                        req.bodyHandler(buffer -> {
+                            JsonObject json = buffer.toJsonObject();
+                            boolean vote = serverResponseHandler.on(new VoteResponse(json.getInteger("term"), json.getString("candidate")));
+                            req.response()
+                                    .end(new JsonObject()
+                                            .put("vote", vote)
+                                            .encode());
+                        });
+                    }
+                })
+                .listen(config.port());
+    }
+}

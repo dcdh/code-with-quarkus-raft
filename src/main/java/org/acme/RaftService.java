@@ -15,10 +15,11 @@ import jakarta.inject.Singleton;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 
 @Singleton
-public class RaftService {
+public class RaftService implements ServerResponseHandler {
 
     @Inject
     Vertx vertx;
@@ -42,37 +43,10 @@ public class RaftService {
 
     public void onStart(@Observes StartupEvent startup) {
         client = vertx.createHttpClient();
-        startServer();
         resetElectionTimer();
         vertx.setPeriodic(
                 config.heartbeatInterval(),
                 id -> sendHeartbeat());
-    }
-
-    private void startServer() {
-        vertx.createHttpServer()
-                .requestHandler(req -> {
-                    if (req.path().equals("/raft/heartbeat")) {
-                        req.bodyHandler(buffer -> {
-                            JsonObject json = buffer.toJsonObject();
-                            receiveHeartbeat(json.getInteger("term"));
-                            req.response().end();
-                        });
-                    } else if (req.path().equals("/raft/vote")) {
-                        req.bodyHandler(buffer -> {
-                            JsonObject json = buffer.toJsonObject();
-                            boolean vote =
-                                    requestVote(
-                                            json.getInteger("term"),
-                                            json.getString("candidate"));
-                            req.response()
-                                    .end(new JsonObject()
-                                            .put("vote", vote)
-                                            .encode());
-                        });
-                    }
-                })
-                .listen(config.port());
     }
 
     private void resetElectionTimer() {
@@ -183,5 +157,17 @@ public class RaftService {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public void on(final HeartbeatResponse heartbeatResponse) {
+        Objects.requireNonNull(heartbeatResponse);
+        receiveHeartbeat(heartbeatResponse.term());
+    }
+
+    @Override
+    public boolean on(final VoteResponse voteResponse) {
+        Objects.requireNonNull(voteResponse);
+        return requestVote(voteResponse.term(), voteResponse.candidate());
     }
 }
