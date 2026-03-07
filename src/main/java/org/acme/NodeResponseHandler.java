@@ -1,6 +1,6 @@
 package org.acme;
 
-public interface ServerResponseHandler {
+public interface NodeResponseHandler {
 
     void on(HeartbeatResponse heartbeatResponse);
 

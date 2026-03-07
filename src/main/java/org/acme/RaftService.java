@@ -15,7 +15,7 @@ import java.util.Objects;
 import java.util.Random;
 
 @Singleton
-public class RaftService implements ServerResponseHandler {
+public class RaftService implements NodeResponseHandler {
 
     public static final String TERM = "term";
     public static final String VOTE = "vote";

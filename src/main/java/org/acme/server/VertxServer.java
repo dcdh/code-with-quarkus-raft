@@ -18,7 +18,7 @@ public class VertxServer {
     RaftConfig config;
 
     @Inject
-    ServerResponseHandler serverResponseHandler;
+    NodeResponseHandler nodeResponseHandler;
 
     void init(@Observes StartupEvent ev) {
         vertx.createHttpServer()
@@ -26,14 +26,14 @@ public class VertxServer {
                     if (req.path().equals("/raft/heartbeat")) {
                         req.bodyHandler(buffer -> {
                             JsonObject json = buffer.toJsonObject();
-                            serverResponseHandler.on(new HeartbeatResponse(
+                            nodeResponseHandler.on(new HeartbeatResponse(
                                     new Term(json.getInteger(RaftService.TERM))));
                             req.response().end();
                         });
                     } else if (req.path().equals("/raft/vote")) {
                         req.bodyHandler(buffer -> {
                             JsonObject json = buffer.toJsonObject();
-                            boolean vote = serverResponseHandler.on(new VoteResponse(
+                            boolean vote = nodeResponseHandler.on(new VoteResponse(
                                     new Term(json.getInteger(RaftService.TERM))));
                             req.response()
                                     .end(new JsonObject()
