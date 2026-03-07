@@ -1,13 +1,10 @@
 package org.acme;
 
-import org.apache.commons.lang3.Validate;
-
 import java.util.Objects;
 
-public record HeartbeatResponse(Integer term) {
+public record HeartbeatResponse(Term term) {
 
     public HeartbeatResponse {
         Objects.requireNonNull(term);
-        Validate.isTrue(term > 0, "Term must be greater than 0");
     }
 }

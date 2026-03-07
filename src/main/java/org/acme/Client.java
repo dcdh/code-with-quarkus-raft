@@ -6,7 +6,7 @@ import java.util.function.Consumer;
 
 public interface Client {
 
-    void vote(URI peer, Integer term, Consumer<VoteGranted> onVoteGranted);
+    void vote(URI peer, Term term, Consumer<VoteGranted> onVoteGranted);
 
-    void sendHeartbeats(List<URI> peers, Integer term, Consumer<SuccessfulResponses> onSuccessfulResponses);
+    void sendHeartbeats(List<URI> peers, Term term, Consumer<SuccessfulResponses> onSuccessfulResponses);
 }

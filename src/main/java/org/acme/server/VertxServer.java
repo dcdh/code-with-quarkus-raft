@@ -26,13 +26,15 @@ public class VertxServer {
                     if (req.path().equals("/raft/heartbeat")) {
                         req.bodyHandler(buffer -> {
                             JsonObject json = buffer.toJsonObject();
-                            serverResponseHandler.on(new HeartbeatResponse(json.getInteger(RaftService.TERM)));
+                            serverResponseHandler.on(new HeartbeatResponse(
+                                    new Term(json.getInteger(RaftService.TERM))));
                             req.response().end();
                         });
                     } else if (req.path().equals("/raft/vote")) {
                         req.bodyHandler(buffer -> {
                             JsonObject json = buffer.toJsonObject();
-                            boolean vote = serverResponseHandler.on(new VoteResponse(json.getInteger(RaftService.TERM)));
+                            boolean vote = serverResponseHandler.on(new VoteResponse(
+                                    new Term(json.getInteger(RaftService.TERM))));
                             req.response()
                                     .end(new JsonObject()
                                             .put(RaftService.VOTE, vote)

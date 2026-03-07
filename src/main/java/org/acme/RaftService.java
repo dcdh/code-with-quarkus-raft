@@ -71,7 +71,7 @@ public class RaftService implements ServerResponseHandler {
         if (state.role == Role.LEADER)
             return;
         state.role = Role.CANDIDATE;
-        state.term++;
+        state.term.increment();
         final Votes votes = new Votes();
         final Quorum quorum = quorumProvider.provide();
         for (URI peer : config.peers()) {
@@ -122,7 +122,7 @@ public class RaftService implements ServerResponseHandler {
     @Override
     public void on(final HeartbeatResponse heartbeatResponse) {
         Objects.requireNonNull(heartbeatResponse);
-        if (heartbeatResponse.term() >= state.term) {
+        if (heartbeatResponse.term().isGreaterThanOrEqualTo(state.term)) {
             if (state.role == Role.LEADER) {
                 onLostLeadershipEvent.fire(new OnLostLeadership());
             }
@@ -135,8 +135,8 @@ public class RaftService implements ServerResponseHandler {
     @Override
     public boolean on(final VoteResponse voteResponse) {
         Objects.requireNonNull(voteResponse);
-        final int term = voteResponse.term();
-        if (term > state.term) {
+        final Term term = voteResponse.term();
+        if (term.isGreaterThan(state.term)) {
             state.term = term;
             state.role = Role.FOLLOWER;
             restartElectionTimer();

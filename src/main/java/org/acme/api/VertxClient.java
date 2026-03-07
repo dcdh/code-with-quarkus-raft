@@ -31,12 +31,12 @@ public class VertxClient implements Client {
     }
 
     @Override
-    public void vote(final URI peer, final Integer term, final Consumer<VoteGranted> onVoteGranted) {
+    public void vote(final URI peer, final Term term, final Consumer<VoteGranted> onVoteGranted) {
         Objects.requireNonNull(peer);
         Objects.requireNonNull(term);
         Objects.requireNonNull(onVoteGranted);
         JsonObject body = new JsonObject()
-                .put(RaftService.TERM, term);
+                .put(RaftService.TERM, term.current());
         client.request(HttpMethod.POST, peer.getPort(), peer.getHost(), "/raft/vote")
                 .compose(req -> req.send(body.encode()))
                 .onSuccess(response ->
@@ -51,12 +51,12 @@ public class VertxClient implements Client {
     }
 
     @Override
-    public void sendHeartbeats(final List<URI> peers, final Integer term,
+    public void sendHeartbeats(final List<URI> peers, final Term term,
                                final Consumer<SuccessfulResponses> onSuccessfulResponses) {
         Objects.requireNonNull(peers);
         Objects.requireNonNull(term);
         Objects.requireNonNull(onSuccessfulResponses);
-        final JsonObject body = new JsonObject().put(RaftService.TERM, term);
+        final JsonObject body = new JsonObject().put(RaftService.TERM, term.current());
         final SuccessfulResponses successfulResponses = new SuccessfulResponses();
         final List<Future<HttpClientResponse>> heartbeats = peers
                 .stream()

@@ -4,5 +4,5 @@ public class RaftState {
 
     Role role = Role.FOLLOWER;
 
-    int term = 0;
+    Term term = new Term();
 }
