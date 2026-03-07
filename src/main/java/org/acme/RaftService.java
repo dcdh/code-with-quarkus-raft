@@ -7,8 +7,7 @@ import jakarta.enterprise.event.Event;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import org.acme.event.OnLeaderElected;
-import org.acme.event.OnLostLeadership;
+import org.acme.event.RoleChanged;
 
 import java.net.URI;
 import java.util.List;
@@ -34,10 +33,7 @@ public class RaftService implements ServerResponseHandler {
     QuorumProvider quorumProvider;
 
     @Inject
-    Event<OnLeaderElected> onLeaderElectedEvent;
-
-    @Inject
-    Event<OnLostLeadership> onLostLeadershipEvent;
+    Event<RoleChanged> roleChangedEvent;
 
     RaftState state = new RaftState();
 
@@ -70,7 +66,7 @@ public class RaftService implements ServerResponseHandler {
     private void startElection() {
         if (state.role == Role.LEADER)
             return;
-        state.role = Role.CANDIDATE;
+        changeRole(Role.CANDIDATE);
         state.term.increment();
         final Votes votes = new Votes();
         final Quorum quorum = quorumProvider.provide();
@@ -95,8 +91,7 @@ public class RaftService implements ServerResponseHandler {
     private void becomeLeader() {
         if (state.role == Role.LEADER)
             return;
-        state.role = Role.LEADER;
-        onLeaderElectedEvent.fire(new OnLeaderElected());
+        changeRole(Role.LEADER);
     }
 
     private void sendHeartbeat() {
@@ -111,8 +106,7 @@ public class RaftService implements ServerResponseHandler {
             if (successfulResponses.isBellowQuorum(quorum)) {
                 Log.warn("Leader lost quorum, stepping down → " + config.nodeId());
                 if (state.role == Role.LEADER) {
-                    onLostLeadershipEvent.fire(new OnLostLeadership());
-                    state.role = Role.FOLLOWER;
+                    changeRole(Role.FOLLOWER);
                     restartElectionTimer();
                 }
             }
@@ -123,11 +117,8 @@ public class RaftService implements ServerResponseHandler {
     public void on(final HeartbeatResponse heartbeatResponse) {
         Objects.requireNonNull(heartbeatResponse);
         if (heartbeatResponse.term().isGreaterThanOrEqualTo(state.term)) {
-            if (state.role == Role.LEADER) {
-                onLostLeadershipEvent.fire(new OnLostLeadership());
-            }
-            state.role = Role.FOLLOWER;
             state.term = heartbeatResponse.term();
+            changeRole(Role.FOLLOWER);
             restartElectionTimer();
         }
     }
@@ -138,10 +129,22 @@ public class RaftService implements ServerResponseHandler {
         final Term term = voteResponse.term();
         if (term.isGreaterThan(state.term)) {
             state.term = term;
-            state.role = Role.FOLLOWER;
+            changeRole(Role.FOLLOWER);
             restartElectionTimer();
             return true;
         }
         return false;
+    }
+
+    private void changeRole(final Role newRole) {
+        Objects.requireNonNull(newRole);
+        if (state.role == newRole) {
+            return;
+        }
+
+        final Role previous = state.role;
+        state.role = newRole;
+
+        roleChangedEvent.fire(new RoleChanged(previous, newRole, state.term));
     }
 }
