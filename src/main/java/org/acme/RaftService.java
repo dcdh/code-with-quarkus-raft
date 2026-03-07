@@ -94,6 +94,7 @@ public class RaftService implements NodeResponseHandler {
         if (state.role == Role.LEADER)
             return;
         changeRole(Role.LEADER);
+        vertx.cancelTimer(electionTimer);
     }
 
     private void sendHeartbeat() {
