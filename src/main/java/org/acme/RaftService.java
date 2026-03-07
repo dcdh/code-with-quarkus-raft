@@ -64,28 +64,30 @@ public class RaftService implements NodeResponseHandler {
     }
 
     private void startElection() {
-        if (state.role == Role.LEADER)
+        if (state.role == Role.LEADER) {
             return;
-        changeRole(Role.CANDIDATE);
-        state.term.increment();
-        final Votes votes = new Votes();
-        final Quorum quorum = quorumProvider.provide();
-        for (URI peer : config.peers()) {
-            if (peer.getPort() == config.port()) {
-                continue;
-            }
-            client.vote(peer, state.term, voteGranted -> {
-                if (state.role != Role.CANDIDATE)
-                    return;
-                if (voteGranted.vote()) {
-                    votes.increment();
-                    if (!votes.isBellowQuorum(quorum)) {
-                        becomeLeader();
-                    }
+        } else {
+            changeRole(Role.CANDIDATE);
+            state.term.increment();
+            final Votes votes = new Votes();
+            final Quorum quorum = quorumProvider.provide();
+            for (URI peer : config.peers()) {
+                if (peer.getPort() == config.port()) {
+                    continue;
                 }
-            });
+                client.vote(peer, state.term, voteGranted -> {
+                    if (state.role != Role.CANDIDATE)
+                        return;
+                    if (voteGranted.vote()) {
+                        votes.increment();
+                        if (!votes.isBellowQuorum(quorum)) {
+                            becomeLeader();
+                        }
+                    }
+                });
+            }
+            restartElectionTimer();
         }
-        restartElectionTimer();
     }
 
     private void becomeLeader() {
@@ -95,22 +97,24 @@ public class RaftService implements NodeResponseHandler {
     }
 
     private void sendHeartbeat() {
-        if (state.role != Role.LEADER)
+        if (state.role != Role.LEADER) {
             return;
-        final Quorum quorum = quorumProvider.provide();
-        final List<URI> peers = config.peers()
-                .stream()
-                .filter(peer -> peer.getPort() != config.port())
-                .toList();
-        client.sendHeartbeats(peers, state.term, successfulResponses -> {
-            if (successfulResponses.isBellowQuorum(quorum)) {
-                Log.warn("Leader lost quorum, stepping down → " + config.nodeId());
-                if (state.role == Role.LEADER) {
-                    changeRole(Role.FOLLOWER);
-                    restartElectionTimer();
+        } else {
+            final Quorum quorum = quorumProvider.provide();
+            final List<URI> peers = config.peers()
+                    .stream()
+                    .filter(peer -> peer.getPort() != config.port())
+                    .toList();
+            client.sendHeartbeats(peers, state.term, successfulResponses -> {
+                if (successfulResponses.isBellowQuorum(quorum)) {
+                    Log.warn("Leader lost quorum, stepping down → " + config.nodeId());
+                    if (state.role == Role.LEADER) {
+                        changeRole(Role.FOLLOWER);
+                        restartElectionTimer();
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     @Override
