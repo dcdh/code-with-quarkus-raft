@@ -5,8 +5,8 @@ import io.quarkus.runtime.QuarkusApplication;
 import io.quarkus.runtime.annotations.QuarkusMain;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
-import org.acme.event.OnLeaderElected;
-import org.acme.event.OnLostLeadership;
+import org.acme.event.LeaderElected;
+import org.acme.event.LostLeadership;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -23,12 +23,12 @@ public class ApplicationEntrypoint implements QuarkusApplication {
         return 0;
     }
 
-    void onLeader(@Observes OnLeaderElected onLeaderElected) {
+    void onLeader(@Observes LeaderElected leaderElected) {
         Log.info("LEADER ELECTED → " + config.nodeId());
         // start Debezium
     }
 
-    void onLostLeadership(@Observes OnLostLeadership onLostLeadership) {
+    void onLostLeadership(@Observes LostLeadership lostLeadership) {
         Log.info("LEADER LOST → " + config.nodeId());
         // stop Debezium
     }
