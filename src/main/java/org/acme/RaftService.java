@@ -7,6 +7,7 @@ import jakarta.enterprise.event.Event;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.acme.event.HeartbeatTick;
 import org.acme.event.RoleChanged;
 
 import java.net.URI;
@@ -42,9 +43,6 @@ public class RaftService implements NodeResponseHandler {
     Long electionTimer;
 
     public void onStart(@Observes StartupEvent startup) {
-        vertx.setPeriodic(
-                config.heartbeatInterval(),
-                id -> sendHeartbeat());
         restartElectionTimer();
     }
 
@@ -97,7 +95,7 @@ public class RaftService implements NodeResponseHandler {
         vertx.cancelTimer(electionTimer);
     }
 
-    private void sendHeartbeat() {
+    void sendHeartbeat(@Observes final HeartbeatTick tick) {
         if (state.role != Role.LEADER) {
             return;
         } else {
