@@ -12,4 +12,11 @@ public class SuccessfulResponses {
     public boolean isBellowQuorum(final Quorum quorum) {
         return count < quorum.required();
     }
+
+    @Override
+    public String toString() {
+        return "SuccessfulResponses{" +
+                "count=" + count +
+                '}';
+    }
 }
