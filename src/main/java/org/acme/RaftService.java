@@ -59,7 +59,9 @@ public class RaftService implements NodeResponseHandler {
                     }
                 });
             }
-            electionTimer.restartElectionTimer();
+            if (state.role != Role.LEADER) {
+                electionTimer.restartElectionTimer();
+            }
         }
     }
 
