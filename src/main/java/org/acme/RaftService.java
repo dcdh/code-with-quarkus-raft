@@ -36,7 +36,7 @@ public class RaftService implements NodeResponseHandler {
 
     RaftState state = new RaftState();
 
-    private void startElection(@Observes final ElectionTick tick) {
+    void startElection(@Observes final ElectionTick tick) {
         if (state.role == Role.LEADER) {
             return;
         } else {
