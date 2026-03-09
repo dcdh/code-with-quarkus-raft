@@ -1,5 +1,6 @@
 package org.acme;
 
+import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.core.Vertx;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -28,6 +29,12 @@ public class ElectionTimer {
 
     void on(@Observes final StartupEvent startupEvent) {
         restartElectionTimer();
+    }
+
+    void on(@Observes final ShutdownEvent shutdownEvent) {
+        if (electionTimer != null) {
+            vertx.cancelTimer(electionTimer);
+        }
     }
 
     public void restartElectionTimer() {
