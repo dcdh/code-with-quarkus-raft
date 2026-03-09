@@ -1,5 +1,6 @@
 package org.acme.server;
 
+import io.quarkus.logging.Log;
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
@@ -42,6 +43,12 @@ public class VertxServer {
                         });
                     }
                 })
-                .listen(config.port());
+                .listen(config.port(), httpServerAsyncResult -> {
+                    if (httpServerAsyncResult.succeeded()) {
+                        Log.infov("Server started successfully on port {0}", httpServerAsyncResult.result().actualPort());
+                    } else {
+                        throw new RuntimeException("Server failed to start", httpServerAsyncResult.cause());
+                    }
+                });
     }
 }
