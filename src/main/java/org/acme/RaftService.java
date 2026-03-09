@@ -1,28 +1,23 @@
 package org.acme;
 
 import io.quarkus.logging.Log;
-import io.quarkus.runtime.StartupEvent;
-import io.vertx.core.Vertx;
 import jakarta.enterprise.event.Event;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
+import org.acme.event.ElectionTick;
 import org.acme.event.HeartbeatTick;
 import org.acme.event.RoleChanged;
 
 import java.net.URI;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
 
 @Singleton
 public class RaftService implements NodeResponseHandler {
 
     public static final String TERM = "term";
     public static final String VOTE = "vote";
-
-    @Inject
-    Vertx vertx;
 
     @Inject
     RaftConfig config;
@@ -36,32 +31,12 @@ public class RaftService implements NodeResponseHandler {
     @Inject
     Event<RoleChanged> roleChangedEvent;
 
+    @Inject
+    ElectionTimer electionTimer;
+
     RaftState state = new RaftState();
 
-    Random random = new Random();
-
-    Long electionTimer;
-
-    public void onStart(@Observes StartupEvent startup) {
-        restartElectionTimer();
-    }
-
-    private void restartElectionTimer() {
-        // vertx.cancelTimer(0) will cancel all event the one defined using setPeriodic
-        if (electionTimer != null) {
-            vertx.cancelTimer(electionTimer);
-        }
-        long timeout =
-                config.electionTimeoutMin() +
-                        random.nextInt(
-                                config.electionTimeoutMax()
-                                        - config.electionTimeoutMin());
-        electionTimer = vertx.setTimer(
-                timeout,
-                id -> startElection());
-    }
-
-    private void startElection() {
+    private void startElection(@Observes final ElectionTick tick) {
         if (state.role == Role.LEADER) {
             return;
         } else {
@@ -84,7 +59,7 @@ public class RaftService implements NodeResponseHandler {
                     }
                 });
             }
-            restartElectionTimer();
+            electionTimer.restartElectionTimer();
         }
     }
 
@@ -108,7 +83,7 @@ public class RaftService implements NodeResponseHandler {
                     Log.warn("Leader lost quorum, stepping down → " + config.nodeId());
                     if (state.role == Role.LEADER) {
                         changeRole(Role.FOLLOWER);
-                        restartElectionTimer();
+                        electionTimer.restartElectionTimer();
                     }
                 }
             });
@@ -121,7 +96,7 @@ public class RaftService implements NodeResponseHandler {
         if (heartbeatResponse.term().isGreaterThanOrEqualTo(state.term)) {
             state.term = heartbeatResponse.term();
             changeRole(Role.FOLLOWER);
-            restartElectionTimer();
+            electionTimer.restartElectionTimer();
         }
     }
 
@@ -132,7 +107,7 @@ public class RaftService implements NodeResponseHandler {
         if (term.isGreaterThan(state.term)) {
             state.term = term;
             changeRole(Role.FOLLOWER);
-            restartElectionTimer();
+            electionTimer.restartElectionTimer();
             return true;
         }
         return false;
