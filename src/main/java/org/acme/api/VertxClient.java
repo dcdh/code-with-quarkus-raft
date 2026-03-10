@@ -1,6 +1,7 @@
 package org.acme.api;
 
 import io.quarkus.logging.Log;
+import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -26,8 +27,12 @@ public class VertxClient implements Client {
     @Inject
     Vertx vertx;
 
-    public void onStart(@Observes StartupEvent startup) {
+    void on(@Observes final StartupEvent startup) {
         client = vertx.createHttpClient();
+    }
+
+    void on(@Observes final ShutdownEvent shutdownEvent) {
+        client.close().toCompletionStage().toCompletableFuture().join();
     }
 
     @Override
@@ -47,7 +52,6 @@ public class VertxClient implements Client {
                                 .onFailure(err -> Log.debug("Erreur lecture body: " + err))
                 )
                 .onFailure(err -> Log.debug("Erreur requête vers " + peer + ": " + err));
-
     }
 
     @Override

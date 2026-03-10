@@ -1,8 +1,10 @@
 package org.acme.server;
 
 import io.quarkus.logging.Log;
+import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -21,8 +23,10 @@ public class VertxServer {
     @Inject
     NodeResponseHandler nodeResponseHandler;
 
-    void init(@Observes StartupEvent ev) {
-        vertx.createHttpServer()
+    private HttpServer httpServer;
+
+    void on(@Observes final StartupEvent ev) {
+        httpServer = vertx.createHttpServer()
                 .requestHandler(req -> {
                     if (req.path().equals("/raft/heartbeat")) {
                         req.bodyHandler(buffer -> {
@@ -50,5 +54,9 @@ public class VertxServer {
                         throw new RuntimeException("Server failed to start", httpServerAsyncResult.cause());
                     }
                 });
+    }
+
+    void on(@Observes final ShutdownEvent shutdownEvent) {
+        httpServer.close().toCompletionStage().toCompletableFuture().join();
     }
 }
